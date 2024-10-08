@@ -178,55 +178,12 @@ class Bomb:
         self.rct.move_ip(self.vx, self.vy)
         screen.blit(self.img, self.rct)
 
-class Score:
-    """
-    スコア表示に関するクラス
-    """
-    def __init__(self):
-        """
-        スコアの初期化とフォント設定を行う
-        """
-        # フォントの設定：hgp創英角ﾎﾟｯﾌﾟ体、サイズ30
-        self.fonto = pg.font.SysFont("hgp創英角ﾎﾟｯﾌﾟ体", 30)
-        # 文字色の設定：青
-        self.color = (0, 0, 255)
-        # スコアの初期値
-        self.score = 0
-        # 文字列Surfaceの生成
-        self.update_image()
-        # 文字列の位置座標：画面左下 (横座標：100，縦座標：画面下部から50)
-        self.position = (100, HEIGHT - 50)
-
-    def update_image(self):
-        """
-        現在のスコアを反映した文字列Surfaceを生成する
-        """
-        score_str = f"Score: {self.score}"
-        self.img = self.fonto.render(score_str, True, self.color)
-
-    def update(self, screen: pg.Surface):
-        """
-        スコアを画面に表示する
-        引数:
-            screen (pg.Surface): 描画先の画面
-        """
-        self.update_image()
-        screen.blit(self.img, self.position)
-
-    def increment(self, points: int = 1):
-        """
-        スコアを増加させる
-        引数:
-            points (int): 増加させるポイント数（デフォルトは1）
-        """
-        self.score += points
-
 def main():
     pg.display.set_caption("たたかえ！こうかとん")
     screen = pg.display.set_mode((WIDTH, HEIGHT))    
     bg_img = pg.image.load("fig/pg_bg.jpg")
     bird = Bird((300, 200))
-    beam = None
+    beams = []  # 変更点: Beamインスタンスを格納するリストを作成
     bombs = [Bomb((255, 0, 0), 10) for _ in range(NUM_OF_BOMBS)]
     clock = pg.time.Clock()
     tmr = 0
@@ -239,8 +196,8 @@ def main():
             if event.type == pg.QUIT:
                 return
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                # スペースキー押下でBeamクラスのインスタンス生成
-                beam = Beam(bird)           
+                # スペースキー押下でBeamクラスのインスタンス生成し、リストに追加
+                beams.append(Beam(bird))           
 
         screen.blit(bg_img, [0, 0])
         
@@ -256,21 +213,33 @@ def main():
                 return
         
         # ビームと爆弾の衝突判定
-        for j, bomb in enumerate(bombs):
-            if beam is not None and bomb is not None:
-                if beam.rct.colliderect(bomb.rct):  # ビームと爆弾が衝突したら
-                    beam, bombs[j] = None, None
-                    bird.change_img(6, screen)
-                    score.increment()  # スコアを1点増加
-                    pg.display.update()              
+        for beam in beams:
+            if beam is not None:
+                for j, bomb in enumerate(bombs):
+                    if bomb is not None and beam.rct.colliderect(bomb.rct):
+                        # ビームと爆弾が衝突したら
+                        beam = None
+                        bombs[j] = None
+                        bird.change_img(6, screen)
+                        score.increment()  # スコアを1点増加
+                        break  # 一つのビームで一つの爆弾のみを処理
+
+        # ビームリストを更新（Noneでないもののみを残す）
+        beams = [beam for beam in beams if beam is not None]
 
         # 爆弾リストから破壊された爆弾を除去
         bombs = [bomb for bomb in bombs if bomb is not None]
 
         key_lst = pg.key.get_pressed()
         bird.update(key_lst, screen)
-        if beam is not None:
-            beam.update(screen) 
+        
+        # ビームの更新と描画
+        for beam in beams:
+            beam.update(screen)
+            # 画面外に出たビームを削除
+            if not check_bound(beam.rct)[0]:
+                beams.remove(beam)
+
         for bomb in bombs:
             bomb.update(screen)
 
